@@ -1,8 +1,8 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 import mysql.connector
 
-# Configuración de la conexión a la base de datos
+# Función para conectar a la base de datos
 def conectar_bd():
     try:
         conexion = mysql.connector.connect(
@@ -16,16 +16,14 @@ def conectar_bd():
         messagebox.showerror("Error", f"No se pudo conectar a la base de datos: {e}")
         return None
 
-# Función para guardar datos en la base de datos
+# Función para guardar datos en la BD
 def guardar_datos():
     if not all([cedula.get(), nombre.get(), apellido.get(), telefono.get(), direccion.get(), correo.get()]):
         messagebox.showerror('Error', 'Todos los campos son obligatorios')
         return
-
     conexion = conectar_bd()
     if conexion is None:
         return
-
     try:
         cursor = conexion.cursor()
         query = """
@@ -41,22 +39,99 @@ def guardar_datos():
         cursor.close()
         conexion.close()
 
-# Función para borrar datos del formulario
+# Función para borrar datos de la BD
 def borrar_datos():
-    cedula.set('')
-    nombre.set('')
-    apellido.set('')
-    direccion.set('')
-    telefono.set('')
-    correo.set('')
-    messagebox.showinfo('Correcto', 'Datos borrados correctamente')
+    if not cedula.get():
+        messagebox.showerror('Error', 'La cédula es obligatoria para eliminar un registro')
+        return
+    conexion = conectar_bd()
+    if conexion is None:
+        return
+    try:
+        cursor = conexion.cursor()
+        query = "DELETE FROM gestion_cliente WHERE cedula = %s"
+        cursor.execute(query, (cedula.get(),))
+        if cursor.rowcount > 0:
+            conexion.commit()
+            messagebox.showinfo('Correcto', 'Registro eliminado correctamente')
+            borrar_campos()
+        else:
+            messagebox.showwarning('Atención', 'No se encontró un registro con esa cédula')
+    except mysql.connector.Error as e:
+        messagebox.showerror('Error', f'Error al eliminar el registro: {e}')
+    finally:
+        cursor.close()
+        conexion.close()
 
-# Construir ventana
+# Función para actualizar datos
+def actualizar_datos():
+    if not all([cedula.get(), nombre.get(), apellido.get(), telefono.get(), direccion.get(), correo.get()]):
+        messagebox.showerror('Error', 'Todos los campos son obligatorios para actualizar un registro')
+        return
+    conexion = conectar_bd()
+    if conexion is None:
+        return
+    try:
+        cursor = conexion.cursor()
+        query = """
+        UPDATE gestion_cliente SET nombre = %s, apellido = %s, direccion = %s, telefono = %s, correo = %s
+        WHERE cedula = %s
+        """
+        cursor.execute(query, (nombre.get(), apellido.get(), direccion.get(), telefono.get(), correo.get(), cedula.get()))
+        if cursor.rowcount > 0:
+            conexion.commit()
+            messagebox.showinfo('Correcto', 'Registro actualizado correctamente')
+        else:
+            messagebox.showwarning('Atención', 'No se encontró un registro con esa cédula')
+    except mysql.connector.Error as e:
+        messagebox.showerror('Error', f'Error al actualizar el registro: {e}')
+    finally:
+        cursor.close()
+        conexion.close()
+
+# Función para ver datos
+def ver_datos():
+    conexion = conectar_bd()
+    if conexion is None:
+        return
+    try:
+        cursor = conexion.cursor()
+        query = "SELECT * FROM gestion_cliente"
+        cursor.execute(query)
+        registros = cursor.fetchall()
+        ventana_ver = tk.Toplevel(ventana)
+        ventana_ver.title("Registros")
+        ventana_ver.geometry("600x400")
+        tree = ttk.Treeview(ventana_ver, columns=("cedula", "nombre", "apellido", "direccion", "telefono", "correo"), show="headings")
+        tree.heading("cedula", text="Cédula")
+        tree.heading("nombre", text="Nombre")
+        tree.heading("apellido", text="Apellido")
+        tree.heading("direccion", text="Dirección")
+        tree.heading("telefono", text="Teléfono")
+        tree.heading("correo", text="Correo")
+        for registro in registros:
+            tree.insert("", tk.END, values=registro)
+        tree.pack(expand=True, fill=tk.BOTH)
+    except mysql.connector.Error as e:
+        messagebox.showerror('Error', f'Error al obtener los datos: {e}')
+    finally:
+        cursor.close()
+        conexion.close()
+
+# Función para borrar campos de entrada
+def borrar_campos():
+    for variable in [cedula, nombre, apellido, direccion, telefono, correo]:
+        variable.set('')
+
 ventana = tk.Tk()
 ventana.title('Sistema de registro de clientes')
-ventana.geometry('400x300')
+ventana.geometry('500x600')
+ventana.configure(bg='#f4f4f4')
+ventana.eval('tk::PlaceWindow . center')
 
-# Crear variables
+frame_contenido = ttk.Frame(ventana, padding=(20, 10))
+frame_contenido.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+
 cedula = tk.StringVar()
 nombre = tk.StringVar()
 apellido = tk.StringVar()
@@ -64,47 +139,18 @@ telefono = tk.StringVar()
 direccion = tk.StringVar()
 correo = tk.StringVar()
 
-# Crear etiquetas
-etiqueta_cedula = tk.Label(ventana, text='Cédula:')
-etiqueta_nombre = tk.Label(ventana, text='Nombre:')
-etiqueta_apellido = tk.Label(ventana, text='Apellido:')
-etiqueta_telefono = tk.Label(ventana, text='Teléfono:')
-etiqueta_direccion = tk.Label(ventana, text='Dirección:')
-etiqueta_correo = tk.Label(ventana, text='Correo:')
+campos = [("Cédula", cedula), ("Nombre", nombre), ("Apellido", apellido), ("Teléfono", telefono), ("Dirección", direccion), ("Correo", correo)]
 
-# Crear entradas
-entrada_cedula = tk.Entry(ventana, textvariable=cedula)
-entrada_nombre = tk.Entry(ventana, textvariable=nombre)
-entrada_apellido = tk.Entry(ventana, textvariable=apellido)
-entrada_telefono = tk.Entry(ventana, textvariable=telefono)
-entrada_direccion = tk.Entry(ventana, textvariable=direccion)
-entrada_correo = tk.Entry(ventana, textvariable=correo)
+for i, (texto, variable) in enumerate(campos):
+    ttk.Label(frame_contenido, text=texto + ':').grid(row=i, column=0, sticky=tk.W, pady=5, padx=5)
+    ttk.Entry(frame_contenido, textvariable=variable, width=35, font=('Arial', 12)).grid(row=i, column=1, sticky=(tk.W, tk.E), pady=5, padx=5)
 
-# Crear botones
-boton_guardar = tk.Button(ventana, text='Guardar', command=guardar_datos)
-boton_borrar = tk.Button(ventana, text='Borrar', command=borrar_datos)
+botones = [("Guardar", guardar_datos, "#4CAF50"), ("Borrar Campos", borrar_campos, "#f44336"), ("Eliminar", borrar_datos, "#FF5733"), ("Actualizar", actualizar_datos, "#FFC300"), ("Ver Datos", ver_datos, "#3498DB")]
 
-# Posicionar etiquetas
-etiqueta_cedula.grid(row=0, column=0, padx=5, pady=5)
-etiqueta_nombre.grid(row=1, column=0, padx=5, pady=5)
-etiqueta_apellido.grid(row=2, column=0, padx=5, pady=5)
-etiqueta_telefono.grid(row=3, column=0, padx=5, pady=5)
-etiqueta_direccion.grid(row=4, column=0, padx=5, pady=5)
-etiqueta_correo.grid(row=5, column=0, padx=5, pady=5)
+for i, (texto, comando, color) in enumerate(botones):
+    btn = tk.Button(frame_contenido, text=texto, command=comando, bg=color, fg='white', font=('Arial', 12, 'bold'), width=20, height=2)
+    btn.grid(row=len(campos) + i, column=0, columnspan=2, pady=8)
 
-# Posicionar entradas
-entrada_cedula.grid(row=0, column=1, padx=5, pady=5)
-entrada_nombre.grid(row=1, column=1, padx=5, pady=5)
-entrada_apellido.grid(row=2, column=1, padx=5, pady=5)
-entrada_telefono.grid(row=3, column=1, padx=5, pady=5)
-entrada_direccion.grid(row=4, column=1, padx=5, pady=5)
-entrada_correo.grid(row=5, column=1, padx=5, pady=5)
-
-# Posicionar botones
-boton_guardar.grid(row=6, column=0, columnspan=2, pady=10)
-boton_borrar.grid(row=7, column=0, columnspan=2, pady=10)
-
-# Ejecutar ventana principal
 ventana.mainloop()
 
 
